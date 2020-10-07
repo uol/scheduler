@@ -3,6 +3,7 @@ package scheduler_test
 import (
 	"fmt"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,12 +18,12 @@ import (
 
 // IncJob - a job to increment it's counter
 type IncJob struct {
-	counter int
+	counter uint32
 }
 
 // Execute - increments the counter
 func (ij *IncJob) Execute() {
-	ij.counter++
+	atomic.AddUint32(&ij.counter, 1)
 }
 
 // createScheduler - creates a new scheduler using 100 millis ticks
@@ -46,7 +47,7 @@ func TestNoAutoStartTask(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 0, job.counter, "expected no increment")
+	assert.Equal(t, (uint32)(0), atomic.LoadUint32(&job.counter), "expected no increment")
 }
 
 // TestAutoStartTask - tests the scheduler with autostart feature enabled
@@ -56,7 +57,7 @@ func TestAutoStartTask(t *testing.T) {
 
 	time.Sleep(110 * time.Millisecond)
 
-	assert.Equal(t, 1, job.counter, "expected one increment")
+	assert.Equal(t, (uint32)(1), atomic.LoadUint32(&job.counter), "expected one increment")
 }
 
 // TestManualStartTask - tests the scheduler with manual start task
@@ -66,7 +67,7 @@ func TestManualStartTask(t *testing.T) {
 
 	time.Sleep(110 * time.Millisecond)
 
-	assert.Equal(t, 0, job.counter, "expected no increment")
+	assert.Equal(t, (uint32)(0), atomic.LoadUint32(&job.counter), "expected no increment")
 
 	if !assert.NoError(t, manager.StartTask("x"), "expected no error") {
 		return
@@ -74,7 +75,7 @@ func TestManualStartTask(t *testing.T) {
 
 	time.Sleep(110 * time.Millisecond)
 
-	assert.Equal(t, 1, job.counter, "expected one increment")
+	assert.Equal(t, (uint32)(1), atomic.LoadUint32(&job.counter), "expected one increment")
 }
 
 // TestStopTask - test the scheduler stop function
@@ -90,7 +91,7 @@ func TestStopTask(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 2, job.counter, "expected two increments")
+	assert.Equal(t, (uint32)(2), atomic.LoadUint32(&job.counter), "expected two increments")
 
 	if assert.Error(t, manager.StopTask("y"), "expected an error, task not exists") {
 		return
@@ -112,7 +113,7 @@ func TestRemoveTask(t *testing.T) {
 
 	time.Sleep(310 * time.Millisecond)
 
-	assert.Equal(t, 3, job.counter, "expected three increments")
+	assert.Equal(t, (uint32)(3), atomic.LoadUint32(&job.counter), "expected three increments")
 }
 
 // TestRemoveAllTasks - test the removal of all tasks function
@@ -140,9 +141,9 @@ func TestRemoveAllTasks(t *testing.T) {
 
 	time.Sleep(310 * time.Millisecond)
 
-	assert.Equal(t, 3, job1.counter, "expected three increments")
-	assert.Equal(t, 3, job2.counter, "expected three increments")
-	assert.Equal(t, 3, job3.counter, "expected three increments")
+	assert.Equal(t, (uint32)(3), atomic.LoadUint32(&job1.counter), "expected three increments")
+	assert.Equal(t, (uint32)(3), atomic.LoadUint32(&job2.counter), "expected three increments")
+	assert.Equal(t, (uint32)(3), atomic.LoadUint32(&job3.counter), "expected three increments")
 }
 
 // TestSimultaneousTasks - test multiple running tasks
@@ -164,9 +165,9 @@ func TestSimultaneousTasks(t *testing.T) {
 
 	assert.Equal(t, 3, manager.GetNumTasks(), "expected three tasks")
 
-	assert.Equal(t, 4, job1.counter, "expected four increments")
-	assert.Equal(t, 8, job2.counter, "expected eigth increments")
-	assert.Equal(t, 2, job3.counter, "expected two increments")
+	assert.Equal(t, (uint32)(4), atomic.LoadUint32(&job1.counter), "expected four increments")
+	assert.Equal(t, (uint32)(8), atomic.LoadUint32(&job2.counter), "expected eigth increments")
+	assert.Equal(t, (uint32)(2), atomic.LoadUint32(&job3.counter), "expected two increments")
 
 	assert.True(t, manager.RemoveTask("2"), "expected true")
 
@@ -174,7 +175,7 @@ func TestSimultaneousTasks(t *testing.T) {
 
 	time.Sleep(410 * time.Millisecond)
 
-	assert.Equal(t, 8, job2.counter, "expected eigth increments")
+	assert.Equal(t, (uint32)(8), atomic.LoadUint32(&job2.counter), "expected eigth increments")
 }
 
 // TestRestartTask - test restarting a task after a while
@@ -184,7 +185,7 @@ func TestRestartTask(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 2, job.counter, "expected two increments")
+	assert.Equal(t, (uint32)(2), atomic.LoadUint32(&job.counter), "expected two increments")
 
 	if !assert.NoError(t, manager.StopTask("x"), "expected no error when stopping a task") {
 		return
@@ -192,7 +193,7 @@ func TestRestartTask(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 2, job.counter, "still expecting two increments")
+	assert.Equal(t, (uint32)(2), atomic.LoadUint32(&job.counter), "still expecting two increments")
 
 	if !assert.NoError(t, manager.StartTask("x"), "expected no error when starting a task") {
 		return
@@ -200,7 +201,7 @@ func TestRestartTask(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 4, job.counter, "now expecting four increments")
+	assert.Equal(t, (uint32)(4), atomic.LoadUint32(&job.counter), "now expecting four increments")
 }
 
 // TestInexistentTask - test restarting a task after a while
@@ -243,7 +244,7 @@ func TestDuplicatedTask(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 4, job1.counter, "expected four increments and no interruption")
+	assert.Equal(t, (uint32)(4), atomic.LoadUint32(&job1.counter), "expected four increments and no interruption")
 }
 
 // TestTaskList - test reading the task list
@@ -292,7 +293,7 @@ func TestIfTaskIsRunning(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 2, job.counter, "expected 2 increments and no interruption")
+	assert.Equal(t, (uint32)(2), atomic.LoadUint32(&job.counter), "expected 2 increments and no interruption")
 
 	if !assert.True(t, manager.IsRunning("x"), "the task should be running") {
 		return
@@ -300,7 +301,7 @@ func TestIfTaskIsRunning(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 4, job.counter, "expected 2 increments and no interruption")
+	assert.Equal(t, (uint32)(4), atomic.LoadUint32(&job.counter), "expected 2 increments and no interruption")
 
 	err = manager.StopTask("x")
 	if err != nil {
@@ -309,7 +310,7 @@ func TestIfTaskIsRunning(t *testing.T) {
 
 	time.Sleep(210 * time.Millisecond)
 
-	assert.Equal(t, 4, job.counter, "expected 2 increments and no interruption")
+	assert.Equal(t, (uint32)(4), atomic.LoadUint32(&job.counter), "expected 2 increments and no interruption")
 
 	if !assert.False(t, manager.IsRunning("x"), "the task should be stopped") {
 		return
